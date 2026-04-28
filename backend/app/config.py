@@ -6,7 +6,11 @@ from pydantic import BaseModel
 
 class Settings(BaseModel):
     database_url: str = "sqlite:///./appflow.sqlite3"
-    cors_allow_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
+    cors_allow_origins: list[str] = [
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "https://www.linkedin.com",
+    ]
 
 
 def get_settings() -> Settings:
@@ -17,6 +21,6 @@ def get_settings() -> Settings:
         cors_allow_origins=[
             origin.strip() for origin in (cors_origins.split(",") if cors_origins else []) if origin.strip()
         ]
-        or ["http://localhost:5173", "http://localhost:3000"],
+        or ["http://localhost:5173", "http://localhost:3000", "https://www.linkedin.com"],
     )
 

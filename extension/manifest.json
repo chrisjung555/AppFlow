@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "AppFlow",
+  "version": "0.1.0",
+  "description": "Track job applications as you browse (MVP: LinkedIn).",
+  "action": {
+    "default_title": "AppFlow",
+    "default_popup": "popup.html"
+  },
+  "permissions": ["activeTab", "scripting"],
+  "host_permissions": ["https://*.linkedin.com/*", "https://linkedin.com/*", "http://127.0.0.1:9000/*"]
+}
+
