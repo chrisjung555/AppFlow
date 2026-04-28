@@ -5,6 +5,17 @@ function setStatus(text) {
   if (el) el.textContent = text;
 }
 
+function isLinkedInJobUrlWithCurrentJobId(url) {
+  try {
+    const u = new URL(url);
+    if (!u.hostname.endsWith("linkedin.com")) return false;
+    if (!u.pathname.includes("/jobs/")) return false;
+    return u.searchParams.has("currentJobId");
+  } catch {
+    return false;
+  }
+}
+
 async function getActiveTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   return tab;
@@ -62,6 +73,18 @@ document.addEventListener("DOMContentLoaded", () => {
   const btn = document.getElementById("addBtn");
   if (!btn) return;
 
+  (async () => {
+    const tab = await getActiveTab();
+    const url = tab?.url || "";
+    const ok = isLinkedInJobUrlWithCurrentJobId(url);
+    btn.disabled = !ok;
+    setStatus(
+      ok
+        ? "Ready."
+        : "Open a valid LinkedIn job posting"
+    );
+  })();
+
   btn.addEventListener("click", async () => {
     btn.disabled = true;
     setStatus("Reading page…");
@@ -69,8 +92,8 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const tab = await getActiveTab();
       const url = tab?.url || "";
-      if (!url.includes("linkedin.com")) {
-        setStatus("Open a LinkedIn job page first.");
+      if (!isLinkedInJobUrlWithCurrentJobId(url)) {
+        setStatus("Not on a supported LinkedIn job URL (missing currentJobId).");
         return;
       }
 

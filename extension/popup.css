@@ -35,6 +35,19 @@
   color: #ffffff;
 }
 
+.btn:disabled,
+.btn[disabled] {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.btn-primary:disabled,
+.btn-primary[disabled] {
+  background: #9ca3af;
+  border-color: #9ca3af;
+  color: #ffffff;
+}
+
 .status {
   margin-top: 10px;
   font-size: 12px;
