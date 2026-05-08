@@ -1,76 +1,119 @@
 # AppFlow
 
-AppFlow is a personal job application tracking system:
+AppFlow is a personal job application tracker:
 
-- A **Chrome extension** detects job listings (starting with LinkedIn) and asks “Is this a role you’re applying for?”
-- If you confirm, it saves the role to a **FastAPI backend**
-- A **React dashboard** shows applications in a pipeline and lets you update status + notes
+- A **Chrome extension** (Manifest V3) detects LinkedIn job views, scrapes role/company/location from the page, and asks whether to track the listing.
+- On confirm, it **POSTs** to a **FastAPI** backend, which stores rows in **SQLite** (deduped by normalized URL).
+- A **React + Vite** dashboard lists jobs, lets you **edit** fields (not the listing URL), change **status** via a dropdown, and **delete** rows.
+
+## Tech stack
+
+| Area        | Choice |
+|------------|--------|
+| Backend    | Python 3, **FastAPI**, **SQLModel** (SQLite by default) |
+| Database   | **SQLite** file (`appflow.sqlite3` under `backend/` when you run the API from that directory). Override with `DATABASE_URL`. |
+| Frontend   | **React 18**, **TypeScript**, **Vite** (`npm run dev`). Dev server proxies `/api/*` → `http://127.0.0.1:9000`. |
+| Extension  | MV3 **content script** + **popup**; shared extraction in `extension/linkedinExtract.js`. |
 
 ## MVP scope
 
-- **Backend**: FastAPI + REST endpoints for jobs
-- **Frontend**: React dashboard (table first; kanban later)
-- **Extension**: Manifest V3, LinkedIn job page detection + extraction + confirmation prompt
-- **Database**: start simple, but design to swap to PostgreSQL later (e.g., Render Postgres)
+- **Backend**: REST CRUD for jobs (`GET`, `POST`, `PATCH`, `DELETE`), idempotent `POST /jobs`, CORS for local dashboard + `chrome-extension://`.
+- **Frontend**: Table view with edit mode, status select, external-link icon, delete (not kanban yet).
+- **Extension**: LinkedIn URLs with `/jobs/` and `currentJobId`; banner + popup save paths.
+- **Later**: hosted deploy (e.g. Render), **PostgreSQL** via `DATABASE_URL`, richer UI.
 
 ## Repo structure
 
 ```
-/backend
-/frontend
-/extension
+backend/
+  app/           # FastAPI app, models, SQLite session
+  run-dev.sh     # optional: run API on 127.0.0.1:9000 with venv if present
+  requirements.txt
+extension/
+  manifest.json
+  contentScript.js
+  linkedinExtract.js
+  popup.js / popup.html
+frontend/
+  src/App.tsx    # dashboard
+  vite.config.ts # dev proxy to backend
 README.md
 ```
 
-## Core user flow
+## Quick start (local)
 
-1. User browses a job listing site (MVP: LinkedIn).
-2. Extension detects a job listing page.
-3. Extension extracts basic job data.
-4. Extension shows a confirmation prompt: “Is this a role you’re applying for?”
-5. On “Yes”, extension sends job data to backend.
-6. Backend stores the job application (dedupe to avoid clutter).
-7. Frontend dashboard displays the saved applications in a pipeline/table.
+### 1. Backend API
 
-## Domain model: JobApplication
+From `backend/` (use a venv and install deps once):
 
-Canonical fields (used consistently across extension → API → frontend):
+```bash
+cd backend
+python3 -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+./run-dev.sh
+# same as: uvicorn app.main:app --reload --host 127.0.0.1 --port 9000
+```
 
-- **id**: string (server-generated)
-- **company**: string (required)
-- **role**: string (required)
-- **location**: string (optional)
-- **url**: string (required)
-- **platform**: string enum (MVP: `linkedin`)
-- **status**: string enum (default: `Interested`)
-- **notes**: string (optional, default empty)
-- **date_added**: ISO datetime string (server-generated)
-- **date_updated**: ISO datetime string (server-generated)
+- Health: `http://127.0.0.1:9000/health`
+- OpenAPI: `http://127.0.0.1:9000/docs`
+- **SQLite file** (default): `backend/appflow.sqlite3` (created on first request).
 
-### Status values
+The **extension** is configured for **`http://127.0.0.1:9000`**; keep that port unless you change both extension JS and this command.
 
-`Interested` | `Applied` | `Online Assessment` | `Interview` | `Offer` | `Rejected`
+### 2. Frontend dashboard
 
-## Duplicate policy (MVP)
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-To avoid clutter and accidental repeats:
+Open the URL Vite prints (usually `http://localhost:5173`). The dev server proxies API calls such as `/api/jobs` to the backend on port **9000**.
 
-- **Primary dedupe key**: `(platform, normalized_url)`
-- **POST /jobs is idempotent**:
-  - Create new job → **201** with created JobApplication
-  - Duplicate job → **200** with existing JobApplication (no new row)
+### 3. Chrome extension
 
-## API contract (MVP)
+1. Open `chrome://extensions`, enable **Developer mode**.
+2. **Load unpacked** → choose the `extension/` folder.
+3. Browse LinkedIn job pages with the extension + API running to save jobs.
 
-Base URL (local dev): `http://localhost:8000`
+## Environment variables
 
-### GET `/jobs`
+| Variable | Purpose |
+|----------|---------|
+| `DATABASE_URL` | SQLAlchemy URL (default `sqlite:///./appflow.sqlite3` relative to process cwd). |
+| `CORS_ALLOW_ORIGINS` | Comma-separated origins; defaults include `http://localhost:5173`, `http://127.0.0.1:5173`, and LinkedIn. |
 
-- **200** → `JobApplication[]` (sorted newest-first)
+## Domain model (Job)
 
-### POST `/jobs`
+Fields line up across extension → API → UI:
 
-Request body:
+- **id** (UUID, server-generated)
+- **company**, **role** (required)
+- **location** (optional)
+- **url** (required; normalized for dedupe; not editable in the dashboard MVP)
+- **platform** (default `linkedin`)
+- **status** enum: `Interested` | `Applied` | `Online Assessment` | `Interview` | `Offer` | `Rejected`
+- **notes** (optional)
+- **date_added**, **date_updated** (UTC, server-managed)
+
+## Duplicate policy
+
+- Dedupe key: **`(platform, normalized_url)`**
+- **`POST /jobs`** is idempotent: new row → **201**; existing → **200** with the same row.
+
+## API (local)
+
+Base URL for the extension and direct tools: **`http://127.0.0.1:9000`**
+
+| Method | Path | Notes |
+|--------|------|--------|
+| GET | `/jobs` | Newest first |
+| POST | `/jobs` | Body: `company`, `role`, `location?`, `url`, `platform` |
+| PATCH | `/jobs/{id}` | Partial JSON (e.g. `status`, `notes`, `company`, …) |
+| DELETE | `/jobs/{id}` | **204** on success |
+| GET | `/health` | Liveness |
+
+Example `POST /jobs` body:
 
 ```json
 {
@@ -82,32 +125,10 @@ Request body:
 }
 ```
 
-- **201** created OR **200** existing → `JobApplication`
+Errors use FastAPI’s usual JSON shape (e.g. **`detail`** on validation failures; some routes use **`detail: { "error", "message" }`** for 404s).
 
-### PATCH `/jobs/{id}`
+## Deployment (later)
 
-Partial update request body:
-
-```json
-{ "status": "Applied", "notes": "Referred by Sam" }
-```
-
-- **200** → updated `JobApplication`
-
-### DELETE `/jobs/{id}`
-
-- **204** no content
-
-## Error shape (simple + consistent)
-
-Non-2xx responses return:
-
-```json
-{ "error": "SOME_CODE", "message": "Human readable message" }
-```
-
-## Deployment target (later): Render
-
-- Backend runs as a **Render Web Service**
-- Database later can be **Render Postgres** via `DATABASE_URL`
-- CORS should be configurable via environment variables (dashboard origin + extension use)
+- Run the API as a managed web service; set **`DATABASE_URL`** to Postgres (or another server DB) when you outgrow single-machine SQLite.
+- Point the built frontend at the real API base URL (today’s Vite proxy is dev-only).
+- Publish the extension with updated host permissions / API URL as needed.
