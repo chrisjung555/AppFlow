@@ -8,7 +8,9 @@ class Settings(BaseModel):
     database_url: str = "sqlite:///./appflow.sqlite3"
     cors_allow_origins: list[str] = [
         "http://localhost:5173",
+        "http://127.0.0.1:5173",
         "http://localhost:3000",
+        "http://127.0.0.1:3000",
         "https://www.linkedin.com",
     ]
 
@@ -21,6 +23,12 @@ def get_settings() -> Settings:
         cors_allow_origins=[
             origin.strip() for origin in (cors_origins.split(",") if cors_origins else []) if origin.strip()
         ]
-        or ["http://localhost:5173", "http://localhost:3000", "https://www.linkedin.com"],
+        or [
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "https://www.linkedin.com",
+        ],
     )
 
