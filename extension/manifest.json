@@ -8,6 +8,13 @@
     "default_popup": "popup.html"
   },
   "permissions": ["activeTab", "scripting"],
-  "host_permissions": ["https://*.linkedin.com/*", "https://linkedin.com/*", "http://127.0.0.1:9000/*"]
+  "host_permissions": ["https://*.linkedin.com/*", "https://linkedin.com/*", "http://127.0.0.1:9000/*"],
+  "content_scripts": [
+    {
+      "matches": ["https://*.linkedin.com/*", "https://linkedin.com/*"],
+      "js": ["linkedinExtract.js", "contentScript.js"],
+      "run_at": "document_idle"
+    }
+  ]
 }
 

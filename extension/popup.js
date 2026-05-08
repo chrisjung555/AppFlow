@@ -22,26 +22,20 @@ async function getActiveTab() {
 }
 
 async function extractFromPage(tabId) {
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    files: ["linkedinExtract.js"],
+  });
+
   const [{ result }] = await chrome.scripting.executeScript({
     target: { tabId },
     func: () => {
-      const pickText = (selectors) => {
-        for (const sel of selectors) {
-          const el = document.querySelector(sel);
-          const txt = el?.textContent?.trim();
-          if (txt) return txt;
-        }
-        return "";
-      };
-
-      const role = pickText(["h1"]);
-      const company = pickText(['a[href*="/company/"]', 'a[data-tracking-control-name*="public_jobs_topcard-org-name"]']);
-      const location = pickText([".jobs-unified-top-card__bullet", "span[class*='topcard__flavor']"]);
-
+      const fn = globalThis.__appflowExtractLinkedInJob;
+      if (typeof fn === "function") return fn();
       return {
-        company,
-        role,
-        location,
+        company: "",
+        role: "",
+        location: "",
         url: window.location.href,
         platform: "linkedin",
       };
@@ -99,7 +93,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const job = await extractFromPage(tab.id);
       if (!job?.company || !job?.role) {
-        setStatus("Couldn’t detect role/company on this page.");
+        setStatus(
+          "Couldn’t read title/company from the page. Wait for the job panel to load, then try again."
+        );
         return;
       }
 

@@ -4,7 +4,7 @@
   const DISMISSED_JOB_ID_KEY = "appflow:dismissedJobId";
 
   function isLinkedInJobPage() {
-    // MVP rule (as requested): only treat as job page if URL includes:
+    // MVP rule: only treat as valid job page if URL includes:
     // - linkedin.com
     // - /jobs/
     // - currentJobId=...
@@ -39,40 +39,13 @@
     }
   }
 
-  function textFromFirst(selectors) {
-    for (const selector of selectors) {
-      const el = document.querySelector(selector);
-      const text = el?.textContent?.trim();
-      if (text) return text;
-    }
-    return null;
-  }
-
   function extractLinkedInJob() {
-    const role =
-      textFromFirst([
-        "h1",
-        'h1[class*="job-title"]',
-        '[data-test-id="job-details-job-title"]',
-      ]) || "";
-
-    const company =
-      textFromFirst([
-        '[data-test-id="job-details-company-name"]',
-        'a[href*="/company/"]',
-        'span[class*="company-name"]',
-      ]) || "";
-
-    const location =
-      textFromFirst([
-        '[data-test-id="job-details-location"]',
-        'span[class*="job-details-jobs-unified-top-card__bullet"]',
-      ]) || "";
-
+    const fn = globalThis.__appflowExtractLinkedInJob;
+    if (typeof fn === "function") return fn();
     return {
-      company,
-      role,
-      location,
+      company: "",
+      role: "",
+      location: "",
       url: window.location.href,
       platform: "linkedin",
     };
@@ -127,7 +100,9 @@
         (async () => {
           const job = extractLinkedInJob();
           if (!job.role || !job.company) {
-            setStatus("Couldn’t detect role/company yet on this page.");
+            setStatus(
+              "Couldn’t read title/company from the page yet. Wait for the job panel to load, then try again."
+            );
             return;
           }
 
